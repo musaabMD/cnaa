@@ -11,41 +11,75 @@ import config from "@/config";
 export default function Login() {
   const supabase = createClient();
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [isDisabled, setIsDisabled] = useState(false);
+  const [mode, setMode] = useState("signin"); // 'signin' or 'signup'
+  const [resetLoading, setResetLoading] = useState(false);
 
-  const handleSignup = async (e, options) => {
-    e?.preventDefault();
-
+  const handleSubmit = async (e) => {
+    e.preventDefault();
     setIsLoading(true);
-
-    try {
-      const { type, provider } = options;
-      const redirectURL = window.location.origin + "/api/auth/callback";
-
-      if (type === "oauth") {
-        await supabase.auth.signInWithOAuth({
-          provider,
-          options: {
-            redirectTo: redirectURL,
-          },
-        });
-      } else if (type === "magic_link") {
-        await supabase.auth.signInWithOtp({
+    if (mode === "signin") {
+      try {
+        const { error } = await supabase.auth.signInWithPassword({
           email,
+          password,
+        });
+        if (error) {
+          toast.error(error.message);
+        } else {
+          toast.success("Successfully signed in!");
+          window.location.href = config.auth.callbackUrl;
+        }
+      } catch (error) {
+        console.log(error);
+        toast.error("An error occurred during sign in");
+      } finally {
+        setIsLoading(false);
+      }
+    } else if (mode === "signup") {
+      try {
+        const { error } = await supabase.auth.signUp({
+          email,
+          password,
           options: {
-            emailRedirectTo: redirectURL,
+            emailRedirectTo: window.location.origin + "/api/auth/callback",
           },
         });
+        if (error) {
+          toast.error(error.message);
+        } else {
+          toast.success("Check your email to confirm your account!");
+        }
+      } catch (error) {
+        console.log(error);
+        toast.error("An error occurred during sign up");
+      } finally {
+        setIsLoading(false);
+      }
+    }
+  };
 
-        toast.success("Check your emails!");
-
-        setIsDisabled(true);
+  const handleResetPassword = async () => {
+    let emailToReset = email;
+    if (!emailToReset) {
+      emailToReset = window.prompt("Enter your email to reset password:");
+    }
+    if (!emailToReset) return;
+    setResetLoading(true);
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(emailToReset, {
+        redirectTo: window.location.origin + "/api/auth/callback",
+      });
+      if (error) {
+        toast.error(error.message);
+      } else {
+        toast.success("Password reset email sent! Check your inbox.");
       }
     } catch (error) {
-      console.log(error);
+      toast.error("An error occurred while sending reset email");
     } finally {
-      setIsLoading(false);
+      setResetLoading(false);
     }
   };
 
@@ -69,75 +103,84 @@ export default function Login() {
         </Link>
       </div>
       <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight text-center mb-12">
-        Sign-in to {config.appName}{" "}
+        {mode === "signin" ? "Sign-in" : "Sign-up"} to {config.appName}{" "}
       </h1>
 
-      <div className="space-y-8 max-w-xl mx-auto">
-        <button
-          className="btn btn-block"
-          onClick={(e) =>
-            handleSignup(e, { type: "oauth", provider: "google" })
-          }
-          disabled={isLoading}
-        >
-          {isLoading ? (
-            <span className="loading loading-spinner loading-xs"></span>
-          ) : (
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              className="w-6 h-6"
-              viewBox="0 0 48 48"
-            >
-              <path
-                fill="#FFC107"
-                d="M43.611 20.083H42V20H24v8h11.303c-1.649 4.657-6.08 8-11.303 8-6.627 0-12-5.373-12-12s5.373-12 12-12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4 12.955 4 4 12.955 4 24s8.955 20 20 20 20-8.955 20-20c0-1.341-.138-2.65-.389-3.917z"
-              />
-              <path
-                fill="#FF3D00"
-                d="m6.306 14.691 6.571 4.819C14.655 15.108 18.961 12 24 12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4 16.318 4 9.656 8.337 6.306 14.691z"
-              />
-              <path
-                fill="#4CAF50"
-                d="M24 44c5.166 0 9.86-1.977 13.409-5.192l-6.19-5.238A11.91 11.91 0 0 1 24 36c-5.202 0-9.619-3.317-11.283-7.946l-6.522 5.025C9.505 39.556 16.227 44 24 44z"
-              />
-              <path
-                fill="#1976D2"
-                d="M43.611 20.083H42V20H24v8h11.303a12.04 12.04 0 0 1-4.087 5.571l.003-.002 6.19 5.238C36.971 39.205 44 34 44 24c0-1.341-.138-2.65-.389-3.917z"
-              />
-            </svg>
-          )}
-          Sign-up with Google
-        </button>
+      <div className="max-w-xl mx-auto">
+        <form className="form-control w-full space-y-4" onSubmit={handleSubmit}>
+          <div>
+            <label className="label">
+              <span className="label-text">Email</span>
+            </label>
+            <input
+              required
+              type="email"
+              value={email}
+              autoComplete="email"
+              placeholder="your.email@example.com"
+              className="input input-bordered w-full placeholder:opacity-60"
+              onChange={(e) => setEmail(e.target.value)}
+              disabled={isLoading}
+            />
+          </div>
 
-        <div className="divider text-xs text-base-content/50 font-medium">
-          OR
-        </div>
-
-        <form
-          className="form-control w-full space-y-4"
-          onSubmit={(e) => handleSignup(e, { type: "magic_link" })}
-        >
-          <input
-            required
-            type="email"
-            value={email}
-            autoComplete="email"
-            placeholder="tom@cruise.com"
-            className="input input-bordered w-full placeholder:opacity-60"
-            onChange={(e) => setEmail(e.target.value)}
-          />
+          <div>
+            <label className="label">
+              <span className="label-text">Password</span>
+            </label>
+            <input
+              required
+              type="password"
+              value={password}
+              autoComplete={mode === "signin" ? "current-password" : "new-password"}
+              placeholder="••••••••"
+              className="input input-bordered w-full placeholder:opacity-60"
+              onChange={(e) => setPassword(e.target.value)}
+              disabled={isLoading}
+            />
+            {mode === "signin" && (
+              <button
+                type="button"
+                className="btn btn-link btn-xs mt-1 px-0 text-left"
+                style={{ textTransform: "none" }}
+                onClick={handleResetPassword}
+                disabled={isLoading || resetLoading}
+              >
+                {resetLoading ? (
+                  <span className="loading loading-spinner loading-xs"></span>
+                ) : (
+                  "Forgot Password?"
+                )}
+              </button>
+            )}
+          </div>
 
           <button
-            className="btn btn-primary btn-block"
-            disabled={isLoading || isDisabled}
+            className="btn btn-primary btn-block mt-4"
+            disabled={isLoading}
             type="submit"
           >
             {isLoading && (
               <span className="loading loading-spinner loading-xs"></span>
             )}
-            Send Magic Link
+            {mode === "signin" ? "Sign In" : "Sign Up"}
           </button>
         </form>
+
+        <div className="divider text-xs text-base-content/50 font-medium">
+          {mode === "signin" ? "Don't have an account?" : "Already have an account?"}
+        </div>
+
+        <button
+          className="btn btn-outline btn-block"
+          onClick={() => setMode(mode === "signin" ? "signup" : "signin")}
+          disabled={isLoading}
+        >
+          {isLoading && (
+            <span className="loading loading-spinner loading-xs"></span>
+          )}
+          {mode === "signin" ? "Sign Up" : "Sign In"}
+        </button>
       </div>
     </main>
   );
